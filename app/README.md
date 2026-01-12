@@ -16,3 +16,6 @@ uv pip install \
 
 uv pip install matcha-tts
 
+
+# 运行
+/data/www/wwwroot/CosyVoiceApi/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
