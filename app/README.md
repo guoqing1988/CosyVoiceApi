@@ -12,3 +12,7 @@ uv pip install \
   ruamel.yaml==0.17.21 \
   ruamel.yaml.clib==0.2.7 \
   pyyaml==6.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+
+uv pip install matcha-tts
+
