@@ -2,10 +2,10 @@ from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from config import settings
-from models import load_cosyvoice_model
-from schemas import TTSRequest
-from utils import wav_to_base64
+from .config import settings
+from .models import load_cosyvoice_model
+from .schemas import TTSRequest
+from .utils import wav_to_base64
 
 app = FastAPI(title="CosyVoiceAPI")
 
