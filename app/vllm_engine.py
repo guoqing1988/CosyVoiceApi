@@ -1,6 +1,6 @@
 from vllm import LLMEngine, SamplingParams
 import asyncio
-from config import settings
+from .config import settings
 
 engine = None
 
