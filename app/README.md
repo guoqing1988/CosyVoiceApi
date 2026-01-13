@@ -1,4 +1,6 @@
 # 安装
+
+```shell
 uv venv --python 3.11
 source .venv/bin/activate
 
@@ -14,9 +16,14 @@ uv pip install \
   pyyaml==6.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 
-uv pip install matcha-tts
-
+uv pip install matcha-tts -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
 
 # 运行
+
+```shell
 export COSYVOICE_MODEL_DIR=/data/www/ComfyUI/models/cosyvoice/Fun-CosyVoice3-0.5B/FunAudioLLM/Fun-CosyVoice3-0.5B-2512
 /data/www/wwwroot/CosyVoiceApi/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+/data/www/wwwroot/CosyVoiceApi/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 
+```
