@@ -203,6 +203,7 @@ uv pip install -r requirements.txt
 ### 5.2 启动服务
 
 ```bash
+export COSYVOICE_MODEL_DIR=/data/www/ComfyUI/models/cosyvoice/Fun-CosyVoice3-0.5B/FunAudioLLM/Fun-CosyVoice3-0.5B-2512
 /data/www/wwwroot/CosyVoiceApi/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
 ```
 

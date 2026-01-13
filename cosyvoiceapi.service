@@ -1,0 +1,37 @@
+[Unit]
+Description=CosyVoice 高并发语音生成 API 服务
+After=network.target
+# 如果需要 GPU，可以取消下面注释（取决于驱动）
+# Wants=nvidia-persistenced.service
+
+[Service]
+Type=simple
+# 请根据实际运行用户修改，建议不要使用 root
+User=liuguoqing
+Group=liuguoqing
+
+# 设置工作目录
+WorkingDirectory=/data/www/wwwroot/CosyVoiceApi
+
+# 环境变量配置
+Environment="COSYVOICE_MODEL_DIR=/data/www/ComfyUI/models/cosyvoice/Fun-CosyVoice3-0.5B/FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
+Environment="PATH=/data/www/wwwroot/CosyVoiceApi/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+
+# 启动命令：使用生产环境建议参数
+ExecStart=/data/www/wwwroot/CosyVoiceApi/.venv/bin/uvicorn app.main:app \
+      --host 0.0.0.0 \
+      --port 8000 \
+      --workers 1 \
+      --loop uvloop \
+      --http httptools
+
+# 自动重启配置
+Restart=always
+RestartSec=5
+
+# 日志输出
+StandardOutput=append:/var/log/cosyvoiceapi.log
+StandardError=append:/var/log/cosyvoiceapi.err.log
+
+[Install]
+WantedBy=multi-user.target
