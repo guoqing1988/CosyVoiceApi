@@ -6,6 +6,8 @@ import torch
 import torchaudio
 import numpy as np
 import os
+from cosyvoice.utils.common import set_all_random_seed
+import random
 
 from .config import settings
 from .models import load_cosyvoice_model, get_cosy_model
@@ -68,6 +70,8 @@ async def tts(req: TTSRequest):
     if not model:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
+    seed = random.randint(1, 100000000)
+    set_all_random_seed(req.seed)
     if not req.stream:
         audio_data_list = []
         try:
