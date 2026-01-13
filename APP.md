@@ -54,15 +54,17 @@ Streaming Audio (PCM/WAV)
 CosyVoiceApi/
 ├── app/
 │   ├── main.py          # FastAPI 入口
-│   ├── config.py        # 配置管理
-│   ├── models.py        # CosyVoice + vLLM 加载
-│   ├── routers/
-│   │   └── tts.py       # API 路由
-│   └── streaming.py    # 流式音频封装
+│   ├── config.py        # 全局配置
+│   ├── models.py        # 模型加载与上下文管理
+│   ├── vllm_engine.py   # vLLM 多并发 & 推理封装
+│   ├── schemas.py       # 请求/响应数据结构
+│   ├── utils.py         # 工具函数
+│   ├── schemas.py       # 请求/响应数据结构
 ├── cosyvoice/           # 原始 CosyVoice 引擎
-├── vllm_example.py
+├── vllm_example.py      # vllm 运行测试
 ├── requirements.txt
-└── README.md
+├── APP.md               # 项目描述文档
+└── README.md            # 原始 https://github.com/FunAudioLLM/CosyVoice 项目介绍
 
 ```
 
