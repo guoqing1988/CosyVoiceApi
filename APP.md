@@ -203,21 +203,13 @@ uv pip install -r requirements.txt
 ### 5.2 启动服务
 
 ```bash
-/data/www/wwwroot/CosyVoiceApi/.venv/bin/uvicorn app.main:app \
-  --host 0.0.0.0 \
-  --port 8000 \
-  --workers 1
+/data/www/wwwroot/CosyVoiceApi/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
 ```
 
 生产建议：
 
 ```bash
-uvicorn app.main:app \
-  --host 0.0.0.0 \
-  --port 8000 \
-  --workers 1 \
-  --loop uvloop \
-  --http httptools
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --loop uvloop --http httptools
 ```
 
 ---
