@@ -40,7 +40,8 @@ async def generate_audio_chunks(model, req: TTSRequest):
         if req.mode == "sft":
             it = model.inference_sft(req.text, req.speaker, stream=req.stream, speed=req.speed)
         elif req.mode == "zero_shot":
-            it = model.inference_zero_shot(req.text, req.prompt_text, req.prompt_wav_path, stream=req.stream, speed=req.speed)
+            formatted_tts_text = f"You are a helpful assistant.<|endofprompt|>{req.prompt_text}"
+            it = model.inference_zero_shot(req.text, formatted_tts_text, req.prompt_wav_path, stream=req.stream, speed=req.speed)
         elif req.mode == "cross_lingual":
             it = model.inference_cross_lingual(req.text, req.prompt_wav_path, stream=req.stream, speed=req.speed)
         elif req.mode == "instruct":
@@ -72,7 +73,8 @@ async def tts(req: TTSRequest):
             if req.mode == "sft":
                 it = model.inference_sft(req.text, req.speaker, stream=False, speed=req.speed)
             elif req.mode == "zero_shot":
-                it = model.inference_zero_shot(req.text, req.prompt_text, req.prompt_wav_path, stream=False, speed=req.speed)
+                formatted_tts_text = f"You are a helpful assistant.<|endofprompt|>{req.prompt_text}"
+                it = model.inference_zero_shot(req.text, formatted_tts_text, req.prompt_wav_path, stream=False, speed=req.speed)
             elif req.mode == "cross_lingual":
                 it = model.inference_cross_lingual(req.text, req.prompt_wav_path, stream=False, speed=req.speed)
             elif req.mode == "instruct":
