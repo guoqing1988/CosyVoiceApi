@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     MAX_WORKERS: int = 4
-    VOICE_CONFIGS = [
+    VOICE_CONFIGS : [
         {
             "id": "default",  # 默认音色
             "file": "zero_shot_prompt.wav",  # asset/zero_shot_prompt.wav
