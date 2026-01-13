@@ -112,8 +112,11 @@ createApp({
             const audioBuffers = [];
             let startTime = audioContext.currentTime;
             let hasStartedPlaying = false;
+            let pendingBytes = new Uint8Array(0); // Buffer for incomplete chunks
 
             const playAudioChunk = (float32Array) => {
+                if (float32Array.length === 0) return;
+
                 const audioBuffer = audioContext.createBuffer(1, float32Array.length, sampleRate);
                 audioBuffer.getChannelData(0).set(float32Array);
 
@@ -133,14 +136,37 @@ createApp({
             try {
                 while (true) {
                     const { done, value } = await reader.read();
-                    if (done) break;
 
-                    // Convert bytes to Float32Array (PCM data is in float32 format from numpy)
-                    const float32Array = new Float32Array(value.buffer);
+                    if (done) {
+                        // Process any remaining bytes
+                        if (pendingBytes.length >= 4) {
+                            const completeLength = Math.floor(pendingBytes.length / 4) * 4;
+                            const float32Array = new Float32Array(pendingBytes.buffer.slice(0, completeLength));
+                            playAudioChunk(float32Array);
+                            audioBuffers.push(float32Array);
+                        }
+                        break;
+                    }
 
-                    // Play immediately when we receive data
-                    playAudioChunk(float32Array);
-                    audioBuffers.push(float32Array);
+                    // Combine pending bytes with new data
+                    const combined = new Uint8Array(pendingBytes.length + value.length);
+                    combined.set(pendingBytes, 0);
+                    combined.set(value, pendingBytes.length);
+
+                    // Calculate how many complete Float32 values we have (4 bytes each)
+                    const completeLength = Math.floor(combined.length / 4) * 4;
+
+                    if (completeLength > 0) {
+                        // Convert complete bytes to Float32Array
+                        const float32Array = new Float32Array(combined.buffer.slice(0, completeLength));
+
+                        // Play immediately when we receive data
+                        playAudioChunk(float32Array);
+                        audioBuffers.push(float32Array);
+                    }
+
+                    // Store remaining incomplete bytes for next iteration
+                    pendingBytes = combined.slice(completeLength);
                 }
 
                 // After streaming is complete, create a downloadable blob
