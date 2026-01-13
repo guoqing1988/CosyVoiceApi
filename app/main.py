@@ -1,9 +1,14 @@
-from fastapi import FastAPI, WebSocket, Request
+from fastapi import FastAPI, WebSocket, Request, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
-from starlette.concurrency import run_in_threadpool
+from fastapi.staticfiles import StaticFiles
+import io
+import torch
+import torchaudio
+import numpy as np
+import os
 
 from .config import settings
-from .models import load_cosyvoice_model
+from .models import load_cosyvoice_model, get_cosy_model
 from .schemas import TTSRequest
 from .utils import wav_to_base64
 
@@ -11,60 +16,113 @@ app = FastAPI(title="CosyVoiceAPI")
 
 @app.on_event("startup")
 async def startup_event():
-    app.state.cosy_model = load_cosyvoice_model(settings.MODEL_DIR)
+    load_cosyvoice_model(settings.MODEL_DIR)
 
-@app.get("/")
-def root():
-    return {"status": "ok", "message": "CosyVoiceAPI Running"}
+@app.get("/v1/health")
+def health():
+    model = get_cosy_model()
+    return {
+        "status": "ok",
+        "gpu": torch.cuda.is_available(),
+        "model": model.__class__.__name__ if model else "Not Loaded"
+    }
 
-# -------- 文本到语音 API --------
+@app.get("/v1/speakers")
+def get_speakers():
+    model = get_cosy_model()
+    if model:
+        return {"speakers": model.list_available_spks()}
+    return {"speakers": []}
 
-@app.post("/tts")
+async def generate_audio_chunks(model, req: TTSRequest):
+    """Unified generator for all inference modes"""
+    try:
+        if req.mode == "sft":
+            it = model.inference_sft(req.text, req.speaker, stream=req.stream, speed=req.speed)
+        elif req.mode == "zero_shot":
+            it = model.inference_zero_shot(req.text, req.prompt_text, req.prompt_wav_path, stream=req.stream, speed=req.speed)
+        elif req.mode == "cross_lingual":
+            it = model.inference_cross_lingual(req.text, req.prompt_wav_path, stream=req.stream, speed=req.speed)
+        elif req.mode == "instruct":
+            if hasattr(model, 'inference_instruct2'):
+                it = model.inference_instruct2(req.text, req.instruct_text, req.prompt_wav_path, stream=req.stream, speed=req.speed)
+            else:
+                it = model.inference_instruct(req.text, req.speaker, req.instruct_text, stream=req.stream, speed=req.speed)
+        elif req.mode == "vc":
+            it = model.inference_vc(req.source_wav_path, req.prompt_wav_path, stream=req.stream, speed=req.speed)
+        else:
+            raise ValueError(f"Unknown mode: {req.mode}")
+
+        for chunk in it:
+            audio_data = chunk['tts_speech'].numpy().tobytes()
+            yield audio_data
+    except Exception as e:
+        print(f"Error in generation: {e}")
+        yield b""
+
+@app.post("/v1/tts")
 async def tts(req: TTSRequest):
-    model = app.state.cosy_model
-    wav = await run_in_threadpool(model.infer, req.text)
-    b64 = wav_to_base64(wav, model.sample_rate)
-    return JSONResponse({"audio": b64})
+    model = get_cosy_model()
+    if not model:
+        raise HTTPException(status_code=503, detail="Model not loaded")
 
-# -------- HTTP 流式输出 TTS --------
+    if not req.stream:
+        audio_data_list = []
+        try:
+            if req.mode == "sft":
+                it = model.inference_sft(req.text, req.speaker, stream=False, speed=req.speed)
+            elif req.mode == "zero_shot":
+                it = model.inference_zero_shot(req.text, req.prompt_text, req.prompt_wav_path, stream=False, speed=req.speed)
+            elif req.mode == "cross_lingual":
+                it = model.inference_cross_lingual(req.text, req.prompt_wav_path, stream=False, speed=req.speed)
+            elif req.mode == "instruct":
+                if hasattr(model, 'inference_instruct2'):
+                    it = model.inference_instruct2(req.text, req.instruct_text, req.prompt_wav_path, stream=False, speed=req.speed)
+                else:
+                    it = model.inference_instruct(req.text, req.speaker, req.instruct_text, stream=False, speed=req.speed)
+            elif req.mode == "vc":
+                it = model.inference_vc(req.source_wav_path, req.prompt_wav_path, stream=False, speed=req.speed)
+            else:
+                raise HTTPException(status_code=400, detail=f"Unknown mode: {req.mode}")
 
-@app.post("/tts/stream")
+            for chunk in it:
+                audio_data_list.append(chunk['tts_speech'])
+
+            if not audio_data_list:
+                raise HTTPException(status_code=500, detail="Failed to generate audio")
+
+            full_audio = torch.cat(audio_data_list, dim=1)
+            b64 = wav_to_base64(full_audio.numpy(), model.sample_rate)
+            return JSONResponse({"audio": b64, "sample_rate": model.sample_rate})
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        return StreamingResponse(generate_audio_chunks(model, req), media_type="audio/pcm")
+
+@app.post("/v1/tts/stream")
 async def tts_stream(req: TTSRequest):
-    model = app.state.cosy_model
+    req.stream = True
+    model = get_cosy_model()
+    if not model:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    return StreamingResponse(generate_audio_chunks(model, req), media_type="audio/pcm")
 
-    def generator():
-        for chunk in model.infer_stream(req.text):
-            yield chunk.tobytes()
-
-    return StreamingResponse(generator(), media_type="audio/wav")
-
-# -------- WebSocket 异步流式 TTS --------
-
-@app.websocket("/ws/tts")
+@app.websocket("/ws/v1/tts")
 async def websocket_tts(ws: WebSocket):
     await ws.accept()
-    model = app.state.cosy_model
+    model = get_cosy_model()
     try:
         while True:
             data = await ws.receive_json()
-            text = data.get("text", "")
-            # 字符流式反馈
-            for chunk in model.infer_stream(text):
-                await ws.send_bytes(chunk.tobytes())
+            req = TTSRequest(**data)
+            async for chunk_bytes in generate_audio_chunks(model, req):
+                await ws.send_bytes(chunk_bytes)
             await ws.send_json({"done": True})
-    except Exception:
+    except Exception as e:
+        print(f"WS Error: {e}")
         await ws.close()
 
-# -------- 文本到 llm 文本生成（vLLM 示例） --------
-
-@app.post("/llm")
-async def llm(req: Request):
-    body = await req.json()
-    prompt = body.get("prompt", "")
-    from vllm_engine import init_vllm, stream_tokens
-
-    engine = init_vllm(settings.MODEL_DIR + "/vllm")  # 指向 vllm 子模型
-    async def event_stream():
-        async for token in stream_tokens(prompt):
-            yield f"data: {token}\n\n"
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+# Mount static files - Must be at the end to not shadow API routes
+static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+if os.path.exists(static_dir):
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")

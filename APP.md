@@ -8,8 +8,10 @@
 - 商用部署（多卡 / 多进程 / 负载均衡）
 - 低延迟首帧返回（<300ms）
 
-项目地址：  
+项目地址：
 https://github.com/guoqing1988/CosyVoiceApi
+
+---
 
 ## 1. 系统架构
 
@@ -59,7 +61,9 @@ CosyVoiceApi/
 │   ├── vllm_engine.py   # vLLM 多并发 & 推理封装
 │   ├── schemas.py       # 请求/响应数据结构
 │   ├── utils.py         # 工具函数
-│   ├── schemas.py       # 请求/响应数据结构
+├── static/              # 前端静态资源
+│   ├── index.html       # UI 界面
+│   ├── app.js           # 界面逻辑
 ├── cosyvoice/           # 原始 CosyVoice 引擎
 ├── vllm_example.py      # vllm 运行测试
 ├── requirements.txt
@@ -72,84 +76,79 @@ CosyVoiceApi/
 
 ## 3. API 接口设计
 
-### 3.1 健康检查
+### 3.1 基础接口
 
-```
-
-GET /v1/health
-
-````
-
-返回：
-
+#### [GET] 健康检查
+- **URL**: `/v1/health`
+- **描述**: 返回服务运行状态、GPU 状态及加载的模型类名。
+- **返回示例**:
 ```json
 {
   "status": "ok",
-  "gpu": "cuda",
-  "vllm": true,
-  "model": "CosyVoice3-0.5B"
+  "gpu": true,
+  "model": "CosyVoice3"
 }
-````
-
----
-
-### 3.2 同步语音生成（一次性返回）
-
-```
-POST /v1/tts
 ```
 
-请求：
-
+#### [GET] 获取音色列表
+- **URL**: `/v1/speakers`
+- **描述**: 返回当前模型支持的所有预训练音色。
+- **返回示例**:
 ```json
 {
-  "text": "你好，欢迎使用 CosyVoice。",
-  "speaker": "female",
-  "format": "wav"
+  "speakers": ["中文女", "中文男", "日语男", ...]
 }
 ```
 
-返回：
+---
 
-* `audio/wav` 文件流
+### 3.2 语音生成接口 (TTS)
+
+#### [POST] 统一合成接口
+- **URL**: `/v1/tts`
+- **Content-Type**: `application/json`
+- **描述**: 支持多种模式的同步或流式语音合成。
+
+**请求参数详解:**
+
+| 参数名 | 类型 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `text` | string | - | **必填**。需要合成的目标文本。 |
+| `mode` | string | `sft` | 合成模式。可选值：<br> - `sft`: 预训练音色<br> - `zero_shot`: 3s 极速复刻<br> - `cross_lingual`: 跨语种复刻<br> - `instruct`: 自然语言控制<br> - `vc`: 声音转换 |
+| `speaker` | string | `中文女` | `sft` 或 `instruct` 模式下的音色名称。 |
+| `prompt_text` | string | `""` | `zero_shot` 模式下 prompt 音频对应的文本内容。 |
+| `prompt_wav_path` | string | `""` | Prompt 音频文件的服务器本地绝对路径。用于复刻或控制音色。 |
+| `instruct_text` | string | `""` | `instruct` 模式下的情感/风格控制文本（如“请用开心的语气说”）。 |
+| `source_wav_path` | string | `""` | `vc` (声音转换) 模式下的源音频服务器本地绝对路径。 |
+| `stream` | boolean | `false` | 是否开启流式返回。 |
+| `speed` | float | `1.0` | 合成语速，范围 0.5 - 2.0。 |
+
+**响应说明:**
+1. **非流式 (`stream: false`)**:
+   - 返回 `JSON` 格式，包含 Base64 编码的音频数据。
+   - 示例: `{"audio": "UklGRi...", "sample_rate": 22050}`
+2. **流式 (`stream: true`)**:
+   - 返回 `audio/pcm` 类型的二进制流分片。
+   - 客户端应按顺序接收分片并实时播放。
 
 ---
 
-### 3.3 HTTP 流式语音输出（推荐）
-
-```
-POST /v1/tts/stream
-Content-Type: application/json
-Accept: audio/wav
-```
-
-返回：
-
-* Chunked WAV Stream
-* 首帧 <300ms
-* 支持边生成边播放
-
-示例（Python）：
-
-```python
-import requests
-
-r = requests.post("http://localhost:8000/v1/tts/stream",
-                  json={"text": "你好，这是流式语音。"},
-                  stream=True)
-
-with open("out.wav", "wb") as f:
-    for chunk in r.iter_content(chunk_size=4096):
-        f.write(chunk)
-```
+#### [POST] 流式合成专用接口
+- **URL**: `/v1/tts/stream`
+- **描述**: 功能与 `/v1/tts` 一致，但强制将 `stream` 设为 `true`。
+- **返回**: `audio/pcm` 二进制流。
 
 ---
 
-### 3.4 WebSocket 实时语音流
+### 3.3 实时交互接口
 
-```
-ws://localhost:8000/ws/tts
-```
+#### [WebSocket] 实时语音合成
+- **URL**: `ws://[host]:[port]/ws/v1/tts`
+- **交互流程**:
+  1. 客户端建立 WebSocket 连接。
+  2. 客户端发送 JSON 格式的配置（参数同 `/v1/tts`）。
+  3. 服务端连续推送音频二进制数据分片 (`Binary Frame`)。
+  4. 生成结束后，服务端发送一个 JSON 消息：`{"done": true}`。
 
 协议：
 
@@ -223,6 +222,14 @@ uvicorn app.main:app \
 
 ---
 
+## 6. UI 控制台
+
+项目内置了一个功能完备的 Web 控制台，方便测试各种模式。
+- **访问地址**: `http://localhost:8000/index.html`
+- **技术栈**: Vue 3 + Tailwind CSS。
+- **功能**: 支持所有推理模式切换、路径输入、语速调节、在线试听及音频下载。
+
+---
 ## 6. 多卡部署
 
 ```bash
