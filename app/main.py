@@ -10,7 +10,7 @@ import os
 from .config import settings
 from .models import load_cosyvoice_model, get_cosy_model
 from .schemas import TTSRequest
-from .utils import wav_to_base64
+from .utils import wav_to_base64,get_exception_error
 
 app = FastAPI(title="CosyVoiceAPI")
 
@@ -92,9 +92,11 @@ async def tts(req: TTSRequest):
                 raise HTTPException(status_code=500, detail="Failed to generate audio")
 
             full_audio = torch.cat(audio_data_list, dim=1)
-            b64 = wav_to_base64(full_audio.numpy(), model.sample_rate)
+            # Flatten audio to 1D array for soundfile compatibility
+            b64 = wav_to_base64(full_audio.numpy().flatten(), model.sample_rate)
             return JSONResponse({"audio": b64, "sample_rate": model.sample_rate})
         except Exception as e:
+            print(get_exception_error())
             raise HTTPException(status_code=500, detail=str(e))
     else:
         return StreamingResponse(generate_audio_chunks(model, req), media_type="audio/pcm")
