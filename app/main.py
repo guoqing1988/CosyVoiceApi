@@ -55,7 +55,8 @@ async def generate_audio_chunks(model, req: TTSRequest):
             raise ValueError(f"Unknown mode: {req.mode}")
 
         for chunk in it:
-            audio_data = chunk['tts_speech'].numpy().tobytes()
+            # Flatten audio to 1D array before converting to bytes
+            audio_data = chunk['tts_speech'].numpy().flatten().tobytes()
             yield audio_data
     except Exception as e:
         print(f"Error in generation: {e}")

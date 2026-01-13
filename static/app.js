@@ -3,7 +3,7 @@ const { createApp, ref, onMounted, computed } = Vue;
 createApp({
     setup() {
         const form = ref({
-            text: "我是通义实验室语音团队全新推出的生成式语音大模型，提供舒适自然的语音合成能力。",
+            text: "我是通义实验室语音团队全新推出的生成式语音大模型,提供舒适自然的语音合成能力。",
             mode: "sft",
             speaker: "中文女",
             prompt_text: "",
@@ -21,6 +21,7 @@ createApp({
         const audioSampleRate = ref(22050);
         const error = ref(null);
         const audioPlayer = ref(null);
+        let abortController = null;
 
         const statusClass = computed(() => {
             if (health.value.status === 'ok') return 'bg-green-500';
@@ -54,6 +55,7 @@ createApp({
             loading.value = true;
             error.value = null;
             audioUrl.value = null;
+            abortController = new AbortController();
 
             try {
                 if (form.value.stream) {
@@ -62,9 +64,12 @@ createApp({
                     await handleSync();
                 }
             } catch (e) {
-                error.value = e.message;
+                if (e.name !== 'AbortError') {
+                    error.value = e.message;
+                }
             } finally {
                 loading.value = false;
+                abortController = null;
             }
         };
 
@@ -72,7 +77,8 @@ createApp({
             const res = await fetch('/v1/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(form.value)
+                body: JSON.stringify(form.value),
+                signal: abortController?.signal
             });
 
             if (!res.ok) {
@@ -86,24 +92,117 @@ createApp({
         };
 
         const handleStreaming = async () => {
-            // For real streaming in browser, we use MediaSource or just direct stream URL
-            // Since the API returns raw PCM, we'd need to wrap it in a WAV header or use Web Audio API
-            // For simplicity in this UI, we'll use the streaming endpoint directly as the source
-            // but the browser <audio> tag doesn't play raw PCM.
-            // So we'll fetch the whole stream or use a small helper to convert it.
+            // Use Web Audio API for streaming playback
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const sampleRate = 22050; // CosyVoice default sample rate
 
-            // Simplified approach for the demo: Use the endpoint as src if it were WAV,
-            // but since it's PCM, we'll inform the user or implement a basic PCM player.
+            const res = await fetch('/v1/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...form.value, stream: true }),
+                signal: abortController?.signal
+            });
 
-            // To make it work with <audio>, we really should return WAV chunks or use a JS player.
-            // Let's implement a simple fetch-based "stream to blob" or just use sync for now
-            // and add a note. Actually, let's try to use the Sync endpoint for the UI to ensure playback.
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.detail || '流式请求失败');
+            }
 
-            console.log("Streaming mode selected, but UI fallback to sync for playback compatibility.");
-            await handleSync();
+            const reader = res.body.getReader();
+            const audioBuffers = [];
+            let startTime = audioContext.currentTime;
+            let hasStartedPlaying = false;
+
+            const playAudioChunk = (float32Array) => {
+                const audioBuffer = audioContext.createBuffer(1, float32Array.length, sampleRate);
+                audioBuffer.getChannelData(0).set(float32Array);
+
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(audioContext.destination);
+
+                if (!hasStartedPlaying) {
+                    startTime = audioContext.currentTime;
+                    hasStartedPlaying = true;
+                }
+
+                source.start(startTime);
+                startTime += audioBuffer.duration;
+            };
+
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    // Convert bytes to Float32Array (PCM data is in float32 format from numpy)
+                    const float32Array = new Float32Array(value.buffer);
+
+                    // Play immediately when we receive data
+                    playAudioChunk(float32Array);
+                    audioBuffers.push(float32Array);
+                }
+
+                // After streaming is complete, create a downloadable blob
+                const totalLength = audioBuffers.reduce((sum, arr) => sum + arr.length, 0);
+                const combinedArray = new Float32Array(totalLength);
+                let offset = 0;
+                for (const arr of audioBuffers) {
+                    combinedArray.set(arr, offset);
+                    offset += arr.length;
+                }
+
+                // Create WAV file for download
+                const wavBlob = createWavBlob(combinedArray, sampleRate);
+                audioUrl.value = URL.createObjectURL(wavBlob);
+                audioSampleRate.value = sampleRate;
+            } catch (e) {
+                console.error('Streaming error:', e);
+                throw new Error('流式播放失败: ' + e.message);
+            }
+        };
+
+        // Helper function to create WAV blob from Float32Array
+        const createWavBlob = (samples, sampleRate) => {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+
+            // WAV header
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            };
+
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); // PCM
+            view.setUint16(22, 1, true); // Mono
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+
+            // Convert float32 to int16
+            let offset = 44;
+            for (let i = 0; i < samples.length; i++) {
+                const s = Math.max(-1, Math.min(1, samples[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                offset += 2;
+            }
+
+            return new Blob([buffer], { type: 'audio/wav' });
         };
 
         const stopGeneration = () => {
+            if (abortController) {
+                abortController.abort();
+            }
             loading.value = false;
         };
 
