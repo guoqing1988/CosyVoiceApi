@@ -5,7 +5,7 @@ createApp({
         const form = ref({
             text: "我是通义实验室语音团队全新推出的生成式语音大模型,提供舒适自然的语音合成能力。",
             mode: "sft",
-            speaker: "中文女",
+            speaker: "",
             prompt_text: "",
             prompt_wav_path: "",
             instruct_text: "",
