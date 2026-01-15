@@ -72,6 +72,7 @@ class VoiceCacheManager:
             
             # 保存到本地缓存
             self.voice_cache[voice_id] = {
+                "id": voice_id,
                 "file": voice_path,
                 "prompt_text": prompt_text,
                 "description": description,
