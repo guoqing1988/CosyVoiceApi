@@ -58,7 +58,7 @@ class TTSService:
         prompt_text = req.prompt_text
         zero_shot_spk_id = ""
         voice_id = req.voice_id or req.speaker
-        if voice_id:
+        if voice_id and req.mode in ["sft", "zero_shot"]:
             voice_info = VoiceService.get_voice_by_id(voice_id)
             if voice_info:
                 prompt_wav_path = voice_info["file"]
