@@ -57,16 +57,16 @@ class TTSService:
         prompt_wav_path = req.prompt_wav_path
         prompt_text = req.prompt_text
         zero_shot_spk_id = ""
-        
-        if req.voice_id:
-            voice_info = VoiceService.get_voice_by_id(req.voice_id)
+        voice_id = req.voice_id or req.speaker
+        if voice_id:
+            voice_info = VoiceService.get_voice_by_id(voice_id)
             if voice_info:
                 prompt_wav_path = voice_info["file"]
                 prompt_text = voice_info["prompt_text"]
-                zero_shot_spk_id = req.voice_id
-                logger.info(f"使用预加载音色: {req.voice_id}")
+                zero_shot_spk_id = voice_id
+                logger.info(f"使用预加载音色: {voice_id}")
             else:
-                logger.warning(f"音色 ID '{req.voice_id}' 不存在,使用默认配置")
+                logger.warning(f"音色 ID '{voice_id}' 不存在,使用默认配置")
         
         # 根据模式生成音频
         try:
