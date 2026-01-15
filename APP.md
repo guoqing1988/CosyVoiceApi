@@ -61,9 +61,18 @@ CosyVoiceApi/
 │   ├── vllm_engine.py   # vLLM 多并发 & 推理封装
 │   ├── schemas.py       # 请求/响应数据结构
 │   ├── utils.py         # 工具函数
+│   ├── controllers/     # API 控制器
+│   │   ├── tts.py       # TTS 接口
+│   │   ├── voice.py     # 音色管理接口
+│   │   ├── system.py    # 系统管理接口
+│   ├── services/        # 业务逻辑
+│   │   ├── tts_service.py # TTS 业务逻辑
+│   │   ├── voice_service.py # 音色管理业务逻辑
 ├── static/              # 前端静态资源
 │   ├── index.html       # UI 界面
 │   ├── app.js           # 界面逻辑
+├── asset/               # 音色文件目录
+│   ├── zero_shot_prompt.wav
 ├── cosyvoice/           # 原始 CosyVoice 引擎
 ├── vllm_example.py      # vllm 运行测试
 ├── requirements.txt
