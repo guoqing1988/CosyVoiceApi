@@ -64,6 +64,7 @@ class TTSService:
                 prompt_wav_path = voice_info["file"]
                 prompt_text = voice_info["prompt_text"]
                 zero_shot_spk_id = voice_id
+                req.mode = "zero_shot"
                 logger.info(f"使用预加载音色: {voice_id}")
             else:
                 logger.warning(f"音色 ID '{voice_id}' 不存在,使用默认配置")
