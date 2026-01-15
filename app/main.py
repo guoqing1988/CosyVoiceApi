@@ -233,3 +233,8 @@ static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 if os.path.exists(static_dir):
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
     logger.info(f"📁 静态文件目录: {static_dir}")
+
+asset_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "asset")
+if os.path.exists(asset_dir):
+    app.mount("/asset", StaticFiles(directory=asset_dir), name="asset")
+    logger.info(f"📁 asset文件目录: {asset_dir}")

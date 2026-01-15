@@ -16,6 +16,7 @@ createApp({
 
         const health = ref({});
         const speakers = ref([]);
+        const voices = ref([]);
         const loading = ref(false);
         const audioUrl = ref(null);
         const audioSampleRate = ref(22050);
@@ -48,6 +49,20 @@ createApp({
                 }
             } catch (e) {
                 console.error("Failed to fetch speakers", e);
+            }
+        };
+
+        const fetchVoices = async () => {
+            try {
+                const res = await fetch('/v1/voices');
+                const data = await res.json();
+                console.log(data);
+                voices.value = data.voices;
+                // if (voices.value.length > 0 && !form.value.voice_id) {
+                //     form.value.voice_id = voices.value[0];
+                // }
+            } catch (e) {
+                console.error("Failed to fetch voices", e);
             }
         };
 
@@ -234,7 +249,8 @@ createApp({
 
         onMounted(() => {
             fetchHealth();
-            fetchSpeakers();
+            // fetchSpeakers();
+            fetchVoices();
             // Refresh health every 30s
             setInterval(fetchHealth, 30000);
         });
@@ -243,6 +259,7 @@ createApp({
             form,
             health,
             speakers,
+            voices,
             loading,
             audioUrl,
             audioSampleRate,
