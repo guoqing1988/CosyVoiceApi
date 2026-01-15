@@ -56,7 +56,7 @@ class TTSService:
         # 处理 voice_id (优先级高于 speaker)
         prompt_wav_path = req.prompt_wav_path
         prompt_text = req.prompt_text
-        zero_shot_spk_id = None
+        zero_shot_spk_id = ""
         
         if req.voice_id:
             voice_info = VoiceService.get_voice_by_id(req.voice_id)
@@ -217,7 +217,7 @@ class TTSService:
             monitor = PerformanceMonitor(f"TTS-{req.mode}-Complete")
             monitor.start()
         
-        for chunk_bytes in TTSService.generate_audio_stream(req, enable_monitor=False):
+        for chunk_bytes in TTSService.generate_audio_stream(req, enable_monitor=True):
             # 将 bytes 转回 tensor (假设是 float32)
             import numpy as np
             chunk_array = np.frombuffer(chunk_bytes, dtype=np.float32)

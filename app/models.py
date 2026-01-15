@@ -187,21 +187,17 @@ def load_cosyvoice_model(
     if settings.ENABLE_MODEL_WARMUP:
         default_voice = voice_cache_manager.get_default_voice()
         if default_voice:
-            warmup_model(
-                prompt_wav_path=default_voice["file"],
-                voice_id=settings.DEFAULT_VOICE_ID
-            )
+            warmup_model(default_voice)
     
     return cosy_model
 
 
-def warmup_model(prompt_wav_path: str = None, voice_id: str = None):
+def warmup_model( voice: Dict):
     """
     预热模型,减少首次请求延迟
     
     Args:
-        prompt_wav_path: 参考音频路径
-        voice_id: 音色 ID
+        voice: 音色信息字典
     """
     global cosy_model
     
@@ -212,18 +208,16 @@ def warmup_model(prompt_wav_path: str = None, voice_id: str = None):
     logger.info("🔥 正在预热模型...")
     start_time = time.time()
     
-    warmup_text = "预热测试"
-    warmup_prompt_text = "You are a helpful assistant.<|endofprompt|>预热"
-    
+    warmup_text = "大家好我是超媒体AI语音助手"    
     try:
-        if prompt_wav_path and os.path.exists(prompt_wav_path):
+        if voice and os.path.exists(voice["file"]):
             # 使用 zero-shot 模式预热
-            spk_id = voice_id if voice_id else "default"
+            spk_id = voice["id"]
             
             for _ in cosy_model.inference_zero_shot(
                 warmup_text,
-                warmup_prompt_text,
-                prompt_wav_path,
+                voice["prompt_text"],
+                voice["file"],
                 stream=False,
                 zero_shot_spk_id=spk_id
             ):
